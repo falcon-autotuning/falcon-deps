@@ -18,7 +18,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
@@ -27,35 +27,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Fix apt database corruption
-        run: |
-          # Remove held packages and reset apt state
-          sudo apt-mark unhold libopencl-clang-14-dev libopencl-clang-15-dev libopencl-clang-16-dev libopencl-clang-17-dev python3-clang-14 python3-clang-15 python3-clang-16 python3-clang-17 python3-clang-18 python3-clang-19 python3-clang-20 2>/dev/null || true
-
-          # Force remove broken packages
-          sudo dpkg --remove --force-all libopencl-clang-14-dev libopencl-clang-15-dev libopencl-clang-16-dev libopencl-clang-17-dev python3-clang-14 python3-clang-15 python3-clang-16 python3-clang-17 python3-clang-18 python3-clang-19 python3-clang-20 2>/dev/null || true
-
-          # Fix apt database
-          sudo apt-get clean
-          sudo apt-get autoclean
-          sudo apt-get autoremove -y --allow-remove-essential
-          sudo dpkg --configure -a
-          sudo apt-get update --fix-missing
-          sudo apt-get dist-upgrade -y --allow-downgrades --allow-remove-essential --allow-change-held-packages
-
       - name: Install build dependencies
         run: |
           sudo apt-get install -y \
-            build-essential \
-            clang \
-            clang++ \
             lld \
             ninja-build \
-            git \
             curl \
             pkg-config \
             jq \
-            make
+            cmake
 
       - name: Show clang version
         run: |
