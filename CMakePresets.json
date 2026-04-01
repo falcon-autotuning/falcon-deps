@@ -12,26 +12,14 @@
     {
       "name": "default",
       "displayName": "Default (x64-linux-dynamic)",
-      "description": "Default build using Ninja, vcpkg x64-linux-dynamic triplet with NuGet caching",
+      "description": "Default build using Ninja and vcpkg x64-linux-dynamic triplet with NuGet caching support",
       "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "VCPKG_TARGET_TRIPLET": "x64-linux-dynamic",
         "VCPKG_FEATURE_FLAGS": "binarycaching"
-      },
-      "binaryDir": "${sourceDir}/build"
-    },
-    {
-      "name": "ci",
-      "displayName": "CI (x64-linux-dynamic with NuGet)",
-      "description": "CI build for x64-linux-dynamic triplet with NuGet binary caching and readwrite access",
-      "inherits": "default",
-      "cacheVariables": {
-        "VCPKG_BINARY_SOURCES": "clear;nuget,${env:NUGET_FEED_URL},readwrite"
-      },
-      "environment": {
-        "NUGET_FEED_URL": "${env:NUGET_FEED_URL}"
       }
     }
   ],
@@ -39,11 +27,6 @@
     {
       "name": "default",
       "configurePreset": "default",
-      "jobs": 4
-    },
-    {
-      "name": "ci",
-      "configurePreset": "ci",
       "jobs": 4
     }
   ]

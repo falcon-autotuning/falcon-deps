@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - "vcpkg.json"
-      - "CMakePresets.json"
       - "ports/**"
       - ".github/workflows/build-and-publish.yml"
   pull_request:
@@ -15,13 +14,12 @@ on:
   workflow_dispatch:
 
 env:
-  VCPKG_BINARY_SOURCES: "clear;nuget,${{ secrets.NUGET_FEED_URL }},readwrite"
-  VCPKG_NUGET_API_TOKEN: ${{ secrets.NUGET_API_KEY }}
-  VCPKG_TARGET_TRIPLET: "x86_64-linux-dynamic"
+  VCPKG_TARGET_TRIPLET: "x64-linux-dynamic"
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Ubuntu 26.04 container with latest clang
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       packages: write
@@ -32,54 +30,88 @@ jobs:
         with:
           submodules: "true"
 
-      - name: Install dependencies
+      - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
             cmake \
-            ninja-build \
+            bison \
+            flex \
+            clang \
+            pkg-config \
             git \
             curl \
-            pkg-config
+            zip \
+            unzip \
+            tar \
+            linux-libc-dev \
+            python3-dev \
+            autoconf \
+            autoconf-archive \
+            automake \
+            libtool \
+            ninja-build \
+            lld \
+            coreutils
 
-      - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgGitCommitId: "e5a1490e1409d175932ef6014519e9ae149ddb7c"
-          vcpkgDirectory: "${{ github.workspace }}/vcpkg"
-          appendedCacheKey: ${{ hashFiles('**/vcpkg.json') }}
-          additionalCachedPaths: ${{ github.workspace }}/build/vcpkg_installed
-
-      - name: Configure CMake
+      - name: Verify clang version
         run: |
-          cmake --preset ci-linux-dynamic \
-            -DVCPKG_BINARY_SOURCES="clear;nuget,${{ secrets.NUGET_FEED_URL }},readwrite"
-        env:
-          NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
+          clang --version
+          clang++ --version
+          echo "✓ Using system clang"
 
-      - name: Install vcpkg packages
+      - name: Validate configurations
         run: |
-          cd build
-          cmake --build . --target vcpkg-install || true
-        continue-on-error: true
+          jq . vcpkg.json
+          echo "✓ vcpkg.json is valid"
 
-      - name: Upload NuGet packages (if credentials provided)
+      - name: Setup vcpkg (full clone)
+        run: |
+          if [ ! -d "vcpkg" ]; then
+            echo "Cloning vcpkg repository..."
+            git clone https://github.com/microsoft/vcpkg.git
+          else
+            echo "Updating vcpkg..."
+            cd vcpkg && git fetch --unshallow && cd ..
+          fi
+          cd vcpkg && ./bootstrap-vcpkg.sh && cd ..
+          echo "✓ vcpkg initialized"
+
+      - name: Build and publish (with NuGet)
         if: secrets.NUGET_FEED_URL != ''
         run: |
-          # vcpkg automatically publishes binary packages when VCPKG_BINARY_SOURCES is set
-          # Verify packages were uploaded
-          echo "NuGet packages uploaded for triplet: ${{ env.VCPKG_TARGET_TRIPLET }}"
+          make upload-binaries \
+            NUGET_FEED="${{ secrets.NUGET_FEED_URL }}" \
+            API_KEY="${{ secrets.NUGET_API_KEY }}"
+        env:
+          CC: clang
+          CXX: clang++
 
-      - name: Generate lockfile
+      - name: Build (without NuGet)
+        if: secrets.NUGET_FEED_URL == ''
         run: |
-          vcpkg/vcpkg export --triplet ${{ env.VCPKG_TARGET_TRIPLET }} \
-            --output-dir=exports \
-            --output=falcon-deps-${{ env.VCPKG_TARGET_TRIPLET }}.tar.gz
+          make build
+        env:
+          CC: clang
+          CXX: clang++
 
-      - name: Upload lockfile as artifact
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: vcpkg-lockfile-${{ env.VCPKG_TARGET_TRIPLET }}
-          path: exports/falcon-deps-*.tar.gz
+          name: build-logs-${{ env.VCPKG_TARGET_TRIPLET }}
+          path: vcpkg_installed/
           retention-days: 30
+
+      - name: Build summary
+        if: success()
+        run: |
+          echo "## ✓ Build Success" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Triplet**: ${{ env.VCPKG_TARGET_TRIPLET }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Compiler**: clang (Ubuntu 26.04)" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment**: Ubuntu 26.04" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ secrets.NUGET_FEED_URL }}" != "" ]; then
+            echo "**NuGet Feed**: Configured and published" >> $GITHUB_STEP_SUMMARY
+          fi
