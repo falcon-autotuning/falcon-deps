@@ -11,26 +11,23 @@
   "configurePresets": [
     {
       "name": "default",
-      "displayName": "Default Config",
-      "description": "Default build using Ninja and vcpkg with NuGet caching",
+      "displayName": "Default (x64-linux-dynamic)",
+      "description": "Default build using Ninja, vcpkg x64-linux-dynamic triplet with NuGet caching",
       "generator": "Ninja",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
-        "VCPKG_TARGET_TRIPLET": "x86_64-linux-dynamic",
+        "VCPKG_TARGET_TRIPLET": "x64-linux-dynamic",
         "VCPKG_FEATURE_FLAGS": "binarycaching"
       },
       "binaryDir": "${sourceDir}/build"
     },
     {
-      "name": "ci-linux-dynamic",
-      "displayName": "CI Linux Dynamic",
-      "description": "CI build for linux-dynamic triplet with NuGet binary caching",
+      "name": "ci",
+      "displayName": "CI (x64-linux-dynamic with NuGet)",
+      "description": "CI build for x64-linux-dynamic triplet with NuGet binary caching and readwrite access",
       "inherits": "default",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "VCPKG_TARGET_TRIPLET": "x86_64-linux-dynamic",
-        "VCPKG_FEATURE_FLAGS": "binarycaching",
         "VCPKG_BINARY_SOURCES": "clear;nuget,${env:NUGET_FEED_URL},readwrite"
       },
       "environment": {
@@ -45,8 +42,8 @@
       "jobs": 4
     },
     {
-      "name": "ci-linux-dynamic",
-      "configurePreset": "ci-linux-dynamic",
+      "name": "ci",
+      "configurePreset": "ci",
       "jobs": 4
     }
   ]
