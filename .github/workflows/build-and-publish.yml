@@ -57,23 +57,27 @@ jobs:
           CC: clang
           CXX: clang++
 
-      - name: Build and publish to NuGet (optional)
-        if: |
-          secrets.NUGET_FEED_URL != '' &&
-          secrets.NUGET_API_KEY != ''
+      - name: Build and publish to NuGet
         run: |
-          echo "NuGet feed configured. Publishing binaries..."
-          export VCPKG_BINARY_SOURCES="clear;nuget,${NUGET_FEED_URL},readwrite"
-          export VCPKG_NUGET_API_TOKEN="${NUGET_API_KEY}"
+          echo "Checking NuGet configuration..."
+          if [ -z "${{ secrets.NUGET_FEED_URL }}" ] || [ -z "${{ secrets.NUGET_API_KEY }}" ]; then
+            echo "⚠ NuGet secrets not configured. Skipping NuGet publishing."
+            echo "To enable: Add NUGET_FEED_URL and NUGET_API_KEY secrets in Settings > Secrets and variables > Actions"
+            exit 0
+          fi
+
+          echo "✓ NuGet secrets found. Publishing binaries..."
+          export VCPKG_BINARY_SOURCES="clear;nuget,${{ secrets.NUGET_FEED_URL }},readwrite"
+          export VCPKG_NUGET_API_TOKEN="${{ secrets.NUGET_API_KEY }}"
+
           ./vcpkg/vcpkg install \
             --triplet=${{ env.VCPKG_TARGET_TRIPLET }} \
             --overlay-ports=./ports
+
           echo "✓ Binaries published to NuGet"
         env:
           CC: clang
           CXX: clang++
-          NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
 
       - name: Report build status
         if: success()
