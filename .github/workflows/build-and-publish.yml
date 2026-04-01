@@ -27,9 +27,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Fix apt cache and install dependencies
         run: |
+          # Clean up broken apt state
+          sudo apt-get clean
+          sudo apt-get autoremove -y
           sudo apt-get update
+
+          # Remove conflicting clang packages first
+          sudo apt-get remove -y \
+            libopencl-clang-14-dev \
+            libopencl-clang-15-dev \
+            libopencl-clang-16-dev \
+            libopencl-clang-17-dev \
+            python3-clang-14 \
+            python3-clang-15 \
+            python3-clang-16 \
+            python3-clang-17 \
+            python3-clang-18 \
+            python3-clang-19 \
+            python3-clang-20 \
+            || true
+
+          # Now install what we need
           sudo apt-get install -y \
             build-essential \
             clang \
@@ -43,7 +63,10 @@ jobs:
             make
 
       - name: Show clang version
-        run: clang --version && clang++ --version
+        run: |
+          clang --version
+          clang++ --version
+          which clang
 
       - name: Setup vcpkg
         run: make setup
@@ -86,10 +109,15 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Triplet**: ${{ env.VCPKG_TARGET_TRIPLET }}" >> $GITHUB_STEP_SUMMARY
           echo "**Compiler**: clang (Ubuntu)" >> $GITHUB_STEP_SUMMARY
-          if [ -n "${{ secrets.NUGET_FEED_URL }}" ]; then
-            echo "**NuGet**: ✓ Configured and published" >> $GITHUB_STEP_SUMMARY
+          if [ -z "${{ secrets.NUGET_FEED_URL }}" ]; then
+            echo "**NuGet**: ⚠ Not configured" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### To enable NuGet publishing:" >> $GITHUB_STEP_SUMMARY
+            echo "1. Go to Settings > Secrets and variables > Actions" >> $GITHUB_STEP_SUMMARY
+            echo "2. Add \`NUGET_FEED_URL\` secret" >> $GITHUB_STEP_SUMMARY
+            echo "3. Add \`NUGET_API_KEY\` secret" >> $GITHUB_STEP_SUMMARY
           else
-            echo "**NuGet**: Not configured (optional)" >> $GITHUB_STEP_SUMMARY
+            echo "**NuGet**: ✓ Configured and publishing" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Upload artifacts
