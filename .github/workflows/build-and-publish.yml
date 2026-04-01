@@ -78,20 +78,15 @@ jobs:
           cd vcpkg && ./bootstrap-vcpkg.sh && cd ..
           echo "✓ vcpkg initialized"
 
-      - name: Build and publish (with NuGet)
-        if: secrets.NUGET_FEED_URL != ''
+      - name: Build and optionally publish NuGet
         run: |
-          make upload-binaries \
-            NUGET_FEED="${{ secrets.NUGET_FEED_URL }}" \
-            API_KEY="${{ secrets.NUGET_API_KEY }}"
-        env:
-          CC: clang
-          CXX: clang++
-
-      - name: Build (without NuGet)
-        if: secrets.NUGET_FEED_URL == ''
-        run: |
-          make build
+          if [ -n "${{ secrets.NUGET_FEED_URL }}" ]; then
+            make upload-binaries \
+              NUGET_FEED="${{ secrets.NUGET_FEED_URL }}" \
+              API_KEY="${{ secrets.NUGET_API_KEY }}"
+          else
+            make build
+          fi
         env:
           CC: clang
           CXX: clang++
