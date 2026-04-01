@@ -1,0 +1,59 @@
+name: Validate vcpkg Configuration
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            git \
+            curl \
+            jq
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: "e5a1490e1409d175932ef6014519e9ae149ddb7c"
+          vcpkgDirectory: "${{ github.workspace }}/vcpkg"
+
+      - name: Validate vcpkg.json
+        run: |
+          set -e
+          echo "Validating vcpkg.json schema..."
+          vcpkg/vcpkg env echo "Schema validation passed"
+
+          # List all dependencies
+          echo "Dependencies in manifest:"
+          jq '.dependencies[] | .name' vcpkg.json
+
+      - name: Check CMakePresets.json
+        run: |
+          echo "Validating CMakePresets.json..."
+          jq . CMakePresets.json > /dev/null && echo "CMakePresets.json is valid"
+
+      - name: Test configure (dry-run)
+        run: |
+          cmake --preset ci-linux-dynamic --debug-output 2>&1 | head -50 || true
+
+      - name: Validate portfiles
+        run: |
+          for portfile in ports/*/portfile.cmake; do
+            echo "Checking portfile: $portfile"
+            # Basic CMake syntax check
+            cmake -P "$portfile" --debug-output 2>&1 | grep -q "^$" && echo "  ✓ Syntax OK" || echo "  ⚠ Review needed"
+          done

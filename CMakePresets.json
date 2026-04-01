@@ -1,0 +1,53 @@
+{
+  "version": 4,
+  "vendor": {
+    "falcon-autotuning/falcon-deps": {}
+  },
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Default Config",
+      "description": "Default build using Ninja and vcpkg with NuGet caching",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x86_64-linux-dynamic",
+        "VCPKG_FEATURE_FLAGS": "binarycaching"
+      },
+      "binaryDir": "${sourceDir}/build"
+    },
+    {
+      "name": "ci-linux-dynamic",
+      "displayName": "CI Linux Dynamic",
+      "description": "CI build for linux-dynamic triplet with NuGet binary caching",
+      "inherits": "default",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "VCPKG_TARGET_TRIPLET": "x86_64-linux-dynamic",
+        "VCPKG_FEATURE_FLAGS": "binarycaching",
+        "VCPKG_BINARY_SOURCES": "clear;nuget,${env:NUGET_FEED_URL},readwrite"
+      },
+      "environment": {
+        "NUGET_FEED_URL": "${env:NUGET_FEED_URL}"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default",
+      "jobs": 4
+    },
+    {
+      "name": "ci-linux-dynamic",
+      "configurePreset": "ci-linux-dynamic",
+      "jobs": 4
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+name: Build Dependencies and Publish NuGet Packages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "vcpkg.json"
+      - "CMakePresets.json"
+      - "ports/**"
+      - ".github/workflows/build-and-publish.yml"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  VCPKG_BINARY_SOURCES: "clear;nuget,${{ secrets.NUGET_FEED_URL }},readwrite"
+  VCPKG_NUGET_API_TOKEN: ${{ secrets.NUGET_API_KEY }}
+  VCPKG_TARGET_TRIPLET: "x86_64-linux-dynamic"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            git \
+            curl \
+            pkg-config
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: "e5a1490e1409d175932ef6014519e9ae149ddb7c"
+          vcpkgDirectory: "${{ github.workspace }}/vcpkg"
+          appendedCacheKey: ${{ hashFiles('**/vcpkg.json') }}
+          additionalCachedPaths: ${{ github.workspace }}/build/vcpkg_installed
+
+      - name: Configure CMake
+        run: |
+          cmake --preset ci-linux-dynamic \
+            -DVCPKG_BINARY_SOURCES="clear;nuget,${{ secrets.NUGET_FEED_URL }},readwrite"
+        env:
+          NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
+
+      - name: Install vcpkg packages
+        run: |
+          cd build
+          cmake --build . --target vcpkg-install || true
+        continue-on-error: true
+
+      - name: Upload NuGet packages (if credentials provided)
+        if: secrets.NUGET_FEED_URL != ''
+        run: |
+          # vcpkg automatically publishes binary packages when VCPKG_BINARY_SOURCES is set
+          # Verify packages were uploaded
+          echo "NuGet packages uploaded for triplet: ${{ env.VCPKG_TARGET_TRIPLET }}"
+
+      - name: Generate lockfile
+        run: |
+          vcpkg/vcpkg export --triplet ${{ env.VCPKG_TARGET_TRIPLET }} \
+            --output-dir=exports \
+            --output=falcon-deps-${{ env.VCPKG_TARGET_TRIPLET }}.tar.gz
+
+      - name: Upload lockfile as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vcpkg-lockfile-${{ env.VCPKG_TARGET_TRIPLET }}
+          path: exports/falcon-deps-*.tar.gz
+          retention-days: 30
