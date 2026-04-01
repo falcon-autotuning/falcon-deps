@@ -35,7 +35,7 @@ jobs:
         run: |
           set -e
           echo "Validating vcpkg.json schema..."
-          vcpkg/vcpkg env echo "Schema validation passed"
+          vcpkg/vcpkg format-manifest --all
 
           # List all dependencies
           echo "Dependencies in manifest:"
