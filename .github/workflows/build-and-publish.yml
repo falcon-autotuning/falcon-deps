@@ -26,86 +26,72 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          submodules: "true"
 
-      - name: Install build dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
-            cmake \
-            bison \
-            flex \
             clang \
-            pkg-config \
+            clang++ \
+            lld \
+            ninja-build \
             git \
             curl \
-            zip \
-            unzip \
-            tar \
-            linux-libc-dev \
-            python3-dev \
-            autoconf \
-            autoconf-archive \
-            automake \
-            libtool \
-            ninja-build \
-            lld \
-            coreutils
+            pkg-config \
+            jq \
+            make
 
-      - name: Verify clang version
-        run: |
-          clang --version
-          clang++ --version
-          echo "✓ Using system clang"
+      - name: Show clang version
+        run: clang --version && clang++ --version
 
-      - name: Validate configurations
-        run: |
-          jq . vcpkg.json
-          echo "✓ vcpkg.json is valid"
+      - name: Setup vcpkg
+        run: make setup
 
-      - name: Setup vcpkg (full clone)
-        run: |
-          if [ ! -d "vcpkg" ]; then
-            echo "Cloning vcpkg repository..."
-            git clone https://github.com/microsoft/vcpkg.git
-          else
-            echo "Updating vcpkg..."
-            cd vcpkg && git fetch --unshallow && cd ..
-          fi
-          cd vcpkg && ./bootstrap-vcpkg.sh && cd ..
-          echo "✓ vcpkg initialized"
+      - name: Validate
+        run: make validate
 
-      - name: Build and optionally publish NuGet
-        run: |
-          if [ -n "${{ secrets.NUGET_FEED_URL }}" ]; then
-            make upload-binaries \
-              NUGET_FEED="${{ secrets.NUGET_FEED_URL }}" \
-              API_KEY="${{ secrets.NUGET_API_KEY }}"
-          else
-            make build
-          fi
+      - name: Build dependencies
+        run: make build
         env:
           CC: clang
           CXX: clang++
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: build-logs-${{ env.VCPKG_TARGET_TRIPLET }}
-          path: vcpkg_installed/
-          retention-days: 30
+      - name: Build and publish to NuGet (optional)
+        if: |
+          secrets.NUGET_FEED_URL != '' &&
+          secrets.NUGET_API_KEY != ''
+        run: |
+          echo "NuGet feed configured. Publishing binaries..."
+          export VCPKG_BINARY_SOURCES="clear;nuget,${NUGET_FEED_URL},readwrite"
+          export VCPKG_NUGET_API_TOKEN="${NUGET_API_KEY}"
+          ./vcpkg/vcpkg install \
+            --triplet=${{ env.VCPKG_TARGET_TRIPLET }} \
+            --overlay-ports=./ports
+          echo "✓ Binaries published to NuGet"
+        env:
+          CC: clang
+          CXX: clang++
+          NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
 
-      - name: Build summary
+      - name: Report build status
         if: success()
         run: |
-          echo "## ✓ Build Success" >> $GITHUB_STEP_SUMMARY
+          echo "## Build Status: ✓ Success" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Triplet**: ${{ env.VCPKG_TARGET_TRIPLET }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Compiler**: clang (Ubuntu 26.04)" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment**: Ubuntu 26.04" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ secrets.NUGET_FEED_URL }}" != "" ]; then
-            echo "**NuGet Feed**: Configured and published" >> $GITHUB_STEP_SUMMARY
+          echo "**Compiler**: clang (Ubuntu)" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ secrets.NUGET_FEED_URL }}" ]; then
+            echo "**NuGet**: ✓ Configured and published" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**NuGet**: Not configured (optional)" >> $GITHUB_STEP_SUMMARY
           fi
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vcpkg-installed-${{ env.VCPKG_TARGET_TRIPLET }}
+          path: vcpkg_installed/
+          retention-days: 30
