@@ -40,53 +40,59 @@ jobs:
       - name: Validate
         run: make validate
 
-      - name: Configure NuGet credentials for GitHub Packages
+      - name: Configure NuGet source + credentials (GitHub Packages)
         shell: bash
         run: |
           set -euo pipefail
 
           if [ -z "${NUGET_FEED_URL:-}" ] || [ -z "${NUGET_API_KEY:-}" ]; then
-            echo "NuGet secrets not configured; skipping NuGet config."
+            echo "NuGet secrets not configured. Skipping NuGet publishing."
             exit 0
           fi
 
-          mkdir -p "$HOME/.nuget/NuGet"
-          NUGET_USERNAME="${NUGET_USERNAME:-${GITHUB_ACTOR}}"
+          # Ensure vcpkg has downloaded nuget.exe; if not, it will appear after first use.
+          # But your logs show vcpkg downloads nuget v7.3.0, so this should exist by now.
+          NUGET_EXE="$(ls -1 ./vcpkg/downloads/tools/nuget-*-linux/nuget.exe | head -n 1)"
+          echo "Using nuget.exe at: $NUGET_EXE"
 
-          cat > "$HOME/.nuget/NuGet/NuGet.Config" <<EOF
+          mkdir -p "$HOME/.nuget/NuGet"
+          CONFIG="$HOME/.nuget/NuGet/NuGet.Config"
+
+          cat > "$CONFIG" <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <configuration>
             <packageSources>
               <clear />
-              <add key="github" value="${NUGET_FEED_URL}" />
             </packageSources>
-            <packageSourceCredentials>
-              <github>
-                <add key="Username" value="${NUGET_USERNAME}" />
-                <add key="ClearTextPassword" value="${NUGET_API_KEY}" />
-              </github>
-            </packageSourceCredentials>
           </configuration>
           EOF
+
+          mono "$NUGET_EXE" sources Add \
+            -Name github \
+            -Source "$NUGET_FEED_URL" \
+            -UserName "$NUGET_USERNAME" \
+            -Password "$NUGET_API_KEY" \
+            -StorePasswordInClearText \
+            -ConfigFile "$CONFIG" \
+            -NonInteractive
+
+          mono "$NUGET_EXE" sources List -ConfigFile "$CONFIG" -NonInteractive
         env:
           NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-          NUGET_USERNAME: ${{ secrets.NUGET_USERNAME }}
+          NUGET_USERNAME: ${{ secrets.NUGET_USERNAME || github.actor }}
 
       - name: Build and publish to NuGet (vcpkg binary cache)
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "Checking NuGet configuration..."
           if [ -z "${{ secrets.NUGET_FEED_URL }}" ] || [ -z "${{ secrets.NUGET_API_KEY }}" ]; then
             echo "NuGet secrets not configured. Skipping NuGet publishing."
             exit 0
           fi
 
-          # Force nuget.exe to use the config we wrote
           export NUGET_CONFIG="$HOME/.nuget/NuGet/NuGet.Config"
-
           export VCPKG_BINARY_SOURCES="clear;nuget,${{ secrets.NUGET_FEED_URL }},readwrite"
           export VCPKG_NUGET_API_TOKEN="${{ secrets.NUGET_API_KEY }}"
 
@@ -94,8 +100,6 @@ jobs:
           ./vcpkg/vcpkg install \
             --triplet=${{ env.VCPKG_TARGET_TRIPLET }} \
             --overlay-ports=./ports
-
-          echo "✓ Binaries published to NuGet"
         env:
           CC: clang
           CXX: clang++
