@@ -36,6 +36,17 @@ jobs:
             pkg-config \
             jq \
             cmake
+            build-essential \
+            zip \
+            unzip \
+            tar \
+            linux-libc-dev \
+            python3-dev \
+            autoconf \
+            autoconf-archive \
+            automake \
+            libtool \
+            coreutils
 
       - name: Show clang version
         run: |
