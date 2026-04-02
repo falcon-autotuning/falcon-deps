@@ -40,7 +40,13 @@ jobs:
       - name: Validate
         run: make validate
 
-      - name: Configure NuGet source + credentials (GitHub Packages)
+      - name: Remove invalid repo-root NuGet.Config (if present)
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f ./NuGet.Config || true
+
+      - name: Write NuGet.Config for GitHub Packages
         shell: bash
         run: |
           set -euo pipefail
@@ -50,37 +56,29 @@ jobs:
             exit 0
           fi
 
-          # Ensure vcpkg has downloaded nuget.exe; if not, it will appear after first use.
-          # But your logs show vcpkg downloads nuget v7.3.0, so this should exist by now.
-          NUGET_EXE="$(ls -1 ./vcpkg/downloads/tools/nuget-*-linux/nuget.exe | head -n 1)"
-          echo "Using nuget.exe at: $NUGET_EXE"
-
           mkdir -p "$HOME/.nuget/NuGet"
-          CONFIG="$HOME/.nuget/NuGet/NuGet.Config"
 
-          cat > "$CONFIG" <<'EOF'
+          cat > "$HOME/.nuget/NuGet/NuGet.Config" <<EOF
           <?xml version="1.0" encoding="utf-8"?>
           <configuration>
             <packageSources>
               <clear />
+              <add key="github" value="${NUGET_FEED_URL}" />
             </packageSources>
+            <packageSourceCredentials>
+              <github>
+                <add key="Username" value="${NUGET_USERNAME}" />
+                <add key="ClearTextPassword" value="${NUGET_API_KEY}" />
+              </github>
+            </packageSourceCredentials>
           </configuration>
           EOF
 
-          mono "$NUGET_EXE" sources Add \
-            -Name github \
-            -Source "$NUGET_FEED_URL" \
-            -UserName "$NUGET_USERNAME" \
-            -Password "$NUGET_API_KEY" \
-            -StorePasswordInClearText \
-            -ConfigFile "$CONFIG" \
-            -NonInteractive
-
-          mono "$NUGET_EXE" sources List -ConfigFile "$CONFIG" -NonInteractive
+          echo "NuGet.Config written."
         env:
           NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-          NUGET_USERNAME: ${{ secrets.NUGET_USERNAME || github.actor }}
+          NUGET_USERNAME: ${{ secrets.NUGET_USERNAME }}
 
       - name: Build and publish to NuGet (vcpkg binary cache)
         shell: bash
