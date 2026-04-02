@@ -100,14 +100,17 @@ jobs:
         env:
           NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-      - name: Sanity check NuGet.Config exists
-        shell: bash
+      - name: Add NuGet source with credentials
         run: |
-          set -euo pipefail
-          ls -la "$HOME/.nuget/NuGet/NuGet.Config"
-          # print redacted
-          sed -e 's/ClearTextPassword" value="[^"]*"/ClearTextPassword" value="***"/g' \
-            "$HOME/.nuget/NuGet/NuGet.Config"
+          nuget sources remove -Name "github" || true
+          nuget sources add -Name "github" -Source "https://nuget.pkg.github.com/falcon-autotuning/index.json" -Username "tjk144" -Password "${{ secrets.NUGET_API_KEY }}" -StorePasswordInClearText
+
+      - name: List NuGet sources
+        run: nuget sources list
+
+      - name: Test NuGet install
+        run: |
+          nuget install bext-sml_x64-linux-dynamic -Source "https://nuget.pkg.github.com/falcon-autotuning/index.json" -Verbosity detailed || true
       - name: Build and publish to NuGet (vcpkg binary cache)
         shell: bash
         run: |
