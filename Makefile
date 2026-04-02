@@ -41,7 +41,7 @@ build: setup validate
 	@echo "Building vcpkg dependencies..."
 	@echo "Triplet: $(TRIPLET)"
 	@echo "Compiler: clang / clang++"
-	./vcpkg/vcpkg install \
+	MAKELEVEL=0 ./vcpkg/vcpkg install \
 		--triplet=$(TRIPLET) \
 		--overlay-ports=./ports
 	@echo "✓ Build complete"
