@@ -2,15 +2,14 @@ name: Build Dependencies and Publish NuGet Packages
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - "vcpkg.json"
       - "ports/**"
-      - ".github/workflows/build-and-publish.yml"
+      # Make sure this matches your actual workflow filename:
+      - ".github/workflows/build_and_publish.yml"
   pull_request:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 env:
@@ -29,31 +28,11 @@ jobs:
 
       - name: Install build dependencies
         run: |
+          sudo apt-get update
           sudo apt-get install -y \
-            lld \
-            ninja-build \
-            curl \
-            pkg-config \
-            jq \
-            cmake \
-            build-essential \
-            zip \
-            unzip \
-            tar \
-            linux-libc-dev \
-            python3-dev \
-            autoconf \
-            autoconf-archive \
-            automake \
-            libtool \
-            coreutils \
-            mono-complete
-
-      - name: Show clang version
-        run: |
-          clang --version
-          clang++ --version
-          which clang
+            lld ninja-build curl pkg-config jq cmake build-essential \
+            zip unzip tar linux-libc-dev python3-dev autoconf autoconf-archive \
+            automake libtool coreutils mono-complete
 
       - name: Setup vcpkg
         run: make setup
@@ -61,20 +40,60 @@ jobs:
       - name: Validate
         run: make validate
 
-      - name: Build and publish to NuGet
+      - name: Configure NuGet credentials for GitHub Packages
+        if: ${{ secrets.NUGET_FEED_URL != '' && secrets.NUGET_API_KEY != '' }}
+        shell: bash
         run: |
+          set -euo pipefail
+
+          mkdir -p "$HOME/.nuget/NuGet"
+
+          # Use github.actor as the username if the PAT belongs to the same user who triggers runs.
+          # If the PAT belongs to a specific user regardless of who triggers, create a NUGET_USERNAME secret instead.
+          NUGET_USERNAME="${{ secrets.NUGET_USERNAME }}"
+          if [ -z "$NUGET_USERNAME" ]; then
+            NUGET_USERNAME="${{ github.actor }}"
+          fi
+
+          cat > "$HOME/.nuget/NuGet/NuGet.Config" <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="github" value="${{ secrets.NUGET_FEED_URL }}" />
+            </packageSources>
+
+            <packageSourceCredentials>
+              <github>
+                <add key="Username" value="${NUGET_USERNAME}" />
+                <add key="ClearTextPassword" value="${{ secrets.NUGET_API_KEY }}" />
+              </github>
+            </packageSourceCredentials>
+          </configuration>
+          EOF
+
+          # Prove the file exists (don’t print secrets)
+          test -f "$HOME/.nuget/NuGet/NuGet.Config"
+          echo "NuGet.Config written."
+
+      - name: Build and publish to NuGet (vcpkg binary cache)
+        shell: bash
+        run: |
+          set -euo pipefail
+
           echo "Checking NuGet configuration..."
           if [ -z "${{ secrets.NUGET_FEED_URL }}" ] || [ -z "${{ secrets.NUGET_API_KEY }}" ]; then
-            echo "⚠ NuGet secrets not configured. Skipping NuGet publishing."
-            echo "To enable: Add NUGET_FEED_URL and NUGET_API_KEY secrets in Settings > Secrets and variables > Actions"
+            echo "NuGet secrets not configured. Skipping NuGet publishing."
             exit 0
           fi
 
-          echo "✓ NuGet secrets found. Publishing binaries..."
+          # Force nuget.exe to use the config we wrote
+          export NUGET_CONFIG="$HOME/.nuget/NuGet/NuGet.Config"
+
           export VCPKG_BINARY_SOURCES="clear;nuget,${{ secrets.NUGET_FEED_URL }},readwrite"
           export VCPKG_NUGET_API_TOKEN="${{ secrets.NUGET_API_KEY }}"
 
-          rm -rf vcpkg_installed  
+          rm -rf vcpkg_installed
           ./vcpkg/vcpkg install \
             --triplet=${{ env.VCPKG_TARGET_TRIPLET }} \
             --overlay-ports=./ports
@@ -83,24 +102,6 @@ jobs:
         env:
           CC: clang
           CXX: clang++
-
-      - name: Report build status
-        if: success()
-        run: |
-          echo "## Build Status: ✓ Success" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Triplet**: ${{ env.VCPKG_TARGET_TRIPLET }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Compiler**: clang (Ubuntu)" >> $GITHUB_STEP_SUMMARY
-          if [ -z "${{ secrets.NUGET_FEED_URL }}" ]; then
-            echo "**NuGet**: ⚠ Not configured" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### To enable NuGet publishing:" >> $GITHUB_STEP_SUMMARY
-            echo "1. Go to Settings > Secrets and variables > Actions" >> $GITHUB_STEP_SUMMARY
-            echo "2. Add \`NUGET_FEED_URL\` secret" >> $GITHUB_STEP_SUMMARY
-            echo "3. Add \`NUGET_API_KEY\` secret" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "**NuGet**: ✓ Configured and publishing" >> $GITHUB_STEP_SUMMARY
-          fi
 
       - name: Upload artifacts
         if: always()
