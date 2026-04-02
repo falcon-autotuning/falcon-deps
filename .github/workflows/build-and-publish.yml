@@ -120,7 +120,7 @@ jobs:
             --debug \
             --debug-env \
             --triplet=${{ env.VCPKG_TARGET_TRIPLET }} \
-            --overlay-ports=./ports
+            --overlay-ports=./ports \
             --nuget-config=$HOME/.nuget/NuGet/NuGet.Config
 
         env:
