@@ -35,7 +35,7 @@ jobs:
             curl \
             pkg-config \
             jq \
-            cmake
+            cmake \
             build-essential \
             zip \
             unzip \
