@@ -94,6 +94,9 @@
     {
       "name": "plplot",
       "version>=": "5.15.0"
+    },
+    {
+      "name": "lsp-framework"
     }
   ],
   "builtin-baseline": "e5a1490e1409d175932ef6014519e9ae149ddb7c",
