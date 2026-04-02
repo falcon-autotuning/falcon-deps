@@ -100,7 +100,14 @@ jobs:
         env:
           NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-
+      - name: Sanity check NuGet.Config exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -la "$HOME/.nuget/NuGet/NuGet.Config"
+          # print redacted
+          sed -e 's/ClearTextPassword" value="[^"]*"/ClearTextPassword" value="***"/g' \
+            "$HOME/.nuget/NuGet/NuGet.Config"
       - name: Build and publish to NuGet (vcpkg binary cache)
         shell: bash
         run: |
@@ -120,8 +127,7 @@ jobs:
             --debug \
             --debug-env \
             --triplet=${{ env.VCPKG_TARGET_TRIPLET }} \
-            --overlay-ports=./ports \
-            --nuget-config=$HOME/.nuget/NuGet/NuGet.Config
+            --overlay-ports=./ports
 
         env:
           CC: clang
