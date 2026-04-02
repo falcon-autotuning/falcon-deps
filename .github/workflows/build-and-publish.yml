@@ -46,7 +46,8 @@ jobs:
             autoconf-archive \
             automake \
             libtool \
-            coreutils
+            coreutils \
+            mono-complete
 
       - name: Show clang version
         run: |
