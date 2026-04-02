@@ -121,6 +121,8 @@ jobs:
             --debug-env \
             --triplet=${{ env.VCPKG_TARGET_TRIPLET }} \
             --overlay-ports=./ports
+            --nuget-config=$HOME/.nuget/NuGet/NuGet.Config
+
         env:
           CC: clang
           CXX: clang++
