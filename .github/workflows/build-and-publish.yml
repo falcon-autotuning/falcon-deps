@@ -41,40 +41,37 @@ jobs:
         run: make validate
 
       - name: Configure NuGet credentials for GitHub Packages
-        if: ${{ secrets.NUGET_FEED_URL != '' && secrets.NUGET_API_KEY != '' }}
         shell: bash
         run: |
           set -euo pipefail
 
-          mkdir -p "$HOME/.nuget/NuGet"
-
-          # Use github.actor as the username if the PAT belongs to the same user who triggers runs.
-          # If the PAT belongs to a specific user regardless of who triggers, create a NUGET_USERNAME secret instead.
-          NUGET_USERNAME="${{ secrets.NUGET_USERNAME }}"
-          if [ -z "$NUGET_USERNAME" ]; then
-            NUGET_USERNAME="${{ github.actor }}"
+          if [ -z "${NUGET_FEED_URL:-}" ] || [ -z "${NUGET_API_KEY:-}" ]; then
+            echo "NuGet secrets not configured; skipping NuGet config."
+            exit 0
           fi
+
+          mkdir -p "$HOME/.nuget/NuGet"
+          NUGET_USERNAME="${NUGET_USERNAME:-${GITHUB_ACTOR}}"
 
           cat > "$HOME/.nuget/NuGet/NuGet.Config" <<EOF
           <?xml version="1.0" encoding="utf-8"?>
           <configuration>
             <packageSources>
               <clear />
-              <add key="github" value="${{ secrets.NUGET_FEED_URL }}" />
+              <add key="github" value="${NUGET_FEED_URL}" />
             </packageSources>
-
             <packageSourceCredentials>
               <github>
                 <add key="Username" value="${NUGET_USERNAME}" />
-                <add key="ClearTextPassword" value="${{ secrets.NUGET_API_KEY }}" />
+                <add key="ClearTextPassword" value="${NUGET_API_KEY}" />
               </github>
             </packageSourceCredentials>
           </configuration>
           EOF
-
-          # Prove the file exists (don’t print secrets)
-          test -f "$HOME/.nuget/NuGet/NuGet.Config"
-          echo "NuGet.Config written."
+        env:
+          NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_USERNAME: ${{ secrets.NUGET_USERNAME }}
 
       - name: Build and publish to NuGet (vcpkg binary cache)
         shell: bash
