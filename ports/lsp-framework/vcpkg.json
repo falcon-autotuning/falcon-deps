@@ -7,6 +7,9 @@
   "license": "MIT",
   "dependencies": [
     {
+      "name": "vcpkg-cmake"
+    },
+    {
       "name": "nlohmann-json",
       "version>=": "3.11.2"
     }
