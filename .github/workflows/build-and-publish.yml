@@ -66,13 +66,13 @@ jobs:
           <configuration>
             <packageSources>
               <clear />
-              <add key="github" value="${NUGET_FEED_URL}" />
+                <add key="falcon-autotuning" value="${NUGET_FEED_URL}" />
             </packageSources>
             <packageSourceCredentials>
-              <github>
-                <add key="Username" value="tjk144" />
+              <falcon-autotuning>
+                <add key="Username" value="tkovach" />
                 <add key="ClearTextPassword" value="${NUGET_API_KEY}" />
-              </github>
+              </falcon-autotuning>
             </packageSourceCredentials>
           </configuration>
           EOF
@@ -98,22 +98,21 @@ jobs:
             https://dist.nuget.org/win-x86-commandline/v7.3.0/nuget.exe
 
           # Set API key for both forms NuGet might match in logs
-          mono "$RUNNER_TEMP/nuget/nuget.exe" setApiKey "$NUGET_API_KEY" -Source "https://nuget.pkg.github.com/falcon-autotuning" -NonInteractive
           mono "$RUNNER_TEMP/nuget/nuget.exe" setApiKey "$NUGET_API_KEY" -Source "$NUGET_FEED_URL" -NonInteractive
         env:
           NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
       - name: Add NuGet source with credentials
         run: |
-          nuget sources remove -Name "github" || true
-          nuget sources add -Name "github" -Source "https://nuget.pkg.github.com/falcon-autotuning/index.json" -Username "tjk144" -Password "${{ secrets.NUGET_API_KEY }}" -StorePasswordInClearText
+          nuget sources remove -Name "falcon-autotuning" || true
+          nuget sources add -Name "falcon-autotuning" -Source "${NUGET_FEED_URL}" -Username "tkovach" -Password "${NUGET_API_KEY}" -StorePasswordInClearText
 
       - name: List NuGet sources
         run: nuget sources list
 
       - name: Test NuGet install
         run: |
-          nuget install bext-sml_x64-linux-dynamic -Source "https://nuget.pkg.github.com/falcon-autotuning/index.json" -Verbosity detailed || true
+          nuget install bext-sml_x64-linux-dynamic -Source "${NUGET_FEED_URL}" -Verbosity detailed || true
       - name: Build and publish to NuGet (vcpkg binary cache)
         shell: bash
         run: |
