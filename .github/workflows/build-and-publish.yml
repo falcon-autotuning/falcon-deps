@@ -82,37 +82,14 @@ jobs:
           NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
 
-      - name: Set NuGet API key for GitHub Packages
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [ -z "${NUGET_FEED_URL:-}" ] || [ -z "${NUGET_API_KEY:-}" ]; then
-            echo "NuGet secrets not configured. Skipping NuGet publishing."
-            exit 0
-          fi
-
-          # Download nuget.exe (so we can run setApiKey before vcpkg downloads its own)
-          mkdir -p "$RUNNER_TEMP/nuget"
-          curl -fsSL -o "$RUNNER_TEMP/nuget/nuget.exe" \
-            https://dist.nuget.org/win-x86-commandline/v7.3.0/nuget.exe
-
-          # Set API key for both forms NuGet might match in logs
-          mono "$RUNNER_TEMP/nuget/nuget.exe" setApiKey "$NUGET_API_KEY" -Source "$NUGET_FEED_URL" -NonInteractive
-        env:
-          NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
       - name: Add NuGet source with credentials
         run: |
-          nuget sources remove -Name "falcon-autotuning" || true
-          nuget sources add -Name "falcon-autotuning" -Source "${NUGET_FEED_URL}" -Username "tkovach" -Password "${NUGET_API_KEY}" -StorePasswordInClearText
+          mono `vcpkg fetch nuget | tail -n1` sources add \
+            -name ADO \
+            -Source ${NUGET_FEED_URL} \
+            -Username tkovach \
+            -Password ${NUGET_API_KEY}
 
-      - name: List NuGet sources
-        run: nuget sources list
-
-      - name: Test NuGet install
-        run: |
-          nuget install bext-sml_x64-linux-dynamic -Source "${NUGET_FEED_URL}" -Verbosity detailed || true
       - name: Build and publish to NuGet (vcpkg binary cache)
         shell: bash
         run: |
@@ -124,7 +101,7 @@ jobs:
           fi
 
           export NUGET_CONFIG="$HOME/.nuget/NuGet/NuGet.Config"
-          export VCPKG_BINARY_SOURCES="clear;nuget,${{ secrets.NUGET_FEED_URL }},readwrite"
+          export VCPKG_BINARY_SOURCES="clear;nuget,ADO,readwrite"
           export VCPKG_NUGET_API_TOKEN="${{ secrets.NUGET_API_KEY }}"
 
           rm -rf vcpkg_installed
