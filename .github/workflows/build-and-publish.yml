@@ -89,6 +89,9 @@ jobs:
             -Source ${NUGET_FEED_URL} \
             -Username tkovach \
             -Password ${NUGET_API_KEY}
+        env:
+          NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
 
       - name: Build and publish to NuGet (vcpkg binary cache)
         shell: bash
